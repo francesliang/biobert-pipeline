@@ -1,0 +1,3 @@
+[submodule "biobert"]
+	path = biobert
+	url = git@github.com:francesliang/biobert.git
