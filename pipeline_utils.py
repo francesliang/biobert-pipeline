@@ -5,6 +5,7 @@ import tensorflow_model_analysis as tfma
 import tensorflow_transform as tft
 from tensorflow_transform.tf_metadata import schema_utils
 
+import biobert
 from biobert import run_ner as bert_ner
 import pipeline_config as cfg
 
@@ -16,6 +17,8 @@ ner_processor = bert_ner.NerProcessor()
 LABEL_KEYS = ner_processor.get_labels()
 
 _FEATURE_KEYS = ["input_ids", "input_mask", "segment_ids", "label_ids"]
+
+_LABEL_KEY = "label_ids"
 
 model_dir = os.path.join(THIS_PATH, 'models')
 
@@ -108,26 +111,25 @@ def eval_input_receiver_fn(tf_transform_output, schema):
 
 
 def trainer_fn(hparams, schema):
-    train_batch_size = 50
-    eval_batch_size = 50
-
     print('Hyperparameters in trainer_fn', hparams.__dict__)
 
     tf_transform_output = tft.TFTransformOutput(hparams.transform_output)
 
+    # input_fn
     train_input_fn = lambda: input_fn(
         hparams.train_files,
         tf_transform_output,
-        batch_size=train_batch_size)
+        batch_size=cfg.train_batch_size)
 
     eval_input_fn = lambda: input_fn(
         hparams.eval_files,
         tf_transform_output,
-        batch_size=eval_batch_size)
+        batch_size=cfg.eval_batch_size)
 
     export_serving_receiver_fn = lambda: serving_receiver_fn(tf_transform_output, schema)
-    exporter = tf.estimator.FinalExporter('ml-pipeline', export_serving_receiver_fn)
+    exporter = tf.estimator.FinalExporter('biobert-pipeline', export_serving_receiver_fn)
 
+    # specs
     train_spec = tf.estimator.TrainSpec(
         train_input_fn,
         max_steps=hparams.train_steps)
@@ -137,8 +139,34 @@ def trainer_fn(hparams, schema):
         steps=hparams.eval_steps,
         exporters=[exporter])
 
-    run_config = tf.estimator.RunConfig(model_dir=hparams.serving_model_dir)
-    estimator = _build_estimator(config=run_config)
+    # configs
+    is_per_host = tf.contrib.tpu.InputPipelineConfig.PER_HOST_V2
+    tpu_config = tf.contrib.tpu.TPUConfig(
+        iterations_per_loop=cfg.iterations_per_loop,
+        num_shards=cfg.num_tpu_cores,
+        per_host_input_for_training=is_per_host
+    )
+    run_config = tf.contrib.tpu.RunConfig(
+        cluster=None,
+        master=None,
+        model_dir=cfg.output_dir,
+        save_checkpoints_steps=cfg.save_checkpoints_steps,
+        tpu_config=tpu_config
+    )
+    bert_config = biobert.modeling.BertConfig.from_json_file(cfg.bert_config_file)
+    num_warmup_steps = int(hparams.train_steps * cfg.warmup_proportion)
+    estimator = _build_estimator(
+        bert_config=bert_config
+        run_config=run_config,
+        init_checkpoint=cfg.init_checkpoint,
+        num_train_steps=hparams.train_steps,
+        num_warmup_steps=num_warmup_steps,
+        train_batch_size=cfg.train_batch_size,
+        eval_batch_size=cfg.eval_batch_size,
+        predict_batch_size=cfg.predict_batch_size,
+        learning_rate=cfg.learning_rate,
+        use_tpu=cfg.use_tpu,
+        use_one_hot_embeddings=cfg.use_tpu)
 
     receiver_fn = lambda: eval_input_receiver_fn(
         tf_transform_output, schema)
