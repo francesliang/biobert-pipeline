@@ -5,12 +5,8 @@ import tensorflow_model_analysis as tfma
 import tensorflow_transform as tft
 from tensorflow_transform.tf_metadata import schema_utils
 
-import keras
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, Flatten, InputLayer, Reshape
-from keras.layers import Conv2D, MaxPooling2D
-from keras import backend as K
-from keras.datasets import mnist
+from biobert import run_ner as bert_ner
+import pipeline_config as cfg
 
 
 THIS_PATH = os.path.dirname(os.path.realpath(__file__))
