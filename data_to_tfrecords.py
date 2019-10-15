@@ -8,6 +8,8 @@ sys.path.append(biobert_path)
 from biobert import run_ner as bert_ner
 from biobert import tokenization
 
+import pipeline_config as cfg
+
 
 ner_processor = bert_ner.NerProcessor()
 
@@ -33,9 +35,6 @@ def to_tfrecords(
 
 
 if __name__ == "__main__":
-    data_dir = sys.argv[1]
-    output_dir = sys.argv[2]
-    vocab_file = sys.argv[3]
     print("Convert raw data to tfrecords.")
-    to_tfrecords(data_dir, output_dir, vocab_file)
+    to_tfrecords(cfg.data_dir, cfg.output_dir, cfg.vocab_file)
 
