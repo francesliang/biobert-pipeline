@@ -156,7 +156,7 @@ def trainer_fn(hparams, schema):
     bert_config = biobert.modeling.BertConfig.from_json_file(cfg.bert_config_file)
     num_warmup_steps = int(hparams.train_steps * cfg.warmup_proportion)
     estimator = _build_estimator(
-        bert_config=bert_config
+        bert_config=bert_config,
         run_config=run_config,
         init_checkpoint=cfg.init_checkpoint,
         num_train_steps=hparams.train_steps,
