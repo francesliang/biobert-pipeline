@@ -11,31 +11,20 @@ import pipeline_config as cfg
 
 THIS_PATH = os.path.dirname(os.path.realpath(__file__))
 
-LABEL_KEYS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-IM_SHAPE = (28, 28, 1)
+ner_processor = bert_ner.NerProcessor()
 
-_OTHER_FEATURE_KEYS = ["label"]
-_FEATURE_KEYS_TO_NORMALISE = ["image_raw"]
-_LABEL_KEY = "label"
-_INPUT_LAYER = 'input_1'
+LABEL_KEYS = ner_processor.get_labels()
+
+_FEATURE_KEYS = ["input_ids", "input_mask", "segment_ids", "label_ids"]
 
 model_dir = os.path.join(THIS_PATH, 'models')
 
-
-def _transform_name(key):
-    output = key
-    if key == "image_raw":
-        output = _INPUT_LAYER
-    return output
 
 
 def preprocessing_fn(inputs):
     """tf.transform's callback function for preprocessing inputs."""
     outputs = {}
-    max_value = tf.constant(255.0)
-    for key in _FEATURE_KEYS_TO_NORMALISE:
-        outputs[_transform_name(key)] = tf.divide(inputs[key], max_value)
-    for key in _OTHER_FEATURE_KEYS:
+    for key in _FEATURE_KEYS:
         outputs[_transform_name(key)] = inputs[key]
     return outputs
 
@@ -162,36 +151,36 @@ def trainer_fn(hparams, schema):
     }
 
 
-def _build_estimator(config):
+def _build_estimator(
+        bert_config,
+        run_config,
+        init_checkpoint,
+        num_train_steps,
+        num_warmup_steps,
+        train_batch_size,
+        eval_batch_size,
+        predict_batch_size,
+        learning_rate=5e-5,
+        use_tpu=False,
+        use_one_hot_embeddings=False):
 
-    num_classes = len(LABEL_KEYS)
+    num_labels = len(LABEL_KEYS) + 1
 
-    # Keras example of CNN for MNIST
-    model = tf.keras.models.Sequential()
-    model.add(tf.keras.layers.InputLayer(
-        input_shape=(IM_SHAPE[0]*IM_SHAPE[1]*IM_SHAPE[2],),
-        name='input_1'))
-    model.add(tf.keras.layers.Reshape(IM_SHAPE))
-    model.add(tf.keras.layers.Conv2D(32, kernel_size=(3, 3),
-         activation='relu',
-         input_shape=IM_SHAPE))
-    model.add(tf.keras.layers.Conv2D(64, (3, 3), activation='relu'))
-    model.add(tf.keras.layers.MaxPooling2D(pool_size=(2, 2)))
-    model.add(tf.keras.layers.Dropout(0.25))
-    model.add(tf.keras.layers.Flatten())
-    model.add(tf.keras.layers.Dense(128, activation='relu'))
-    model.add(tf.keras.layers.Dropout(0.5))
-    model.add(tf.keras.layers.Dense(num_classes, activation='softmax'))
+    model_fn = bert_ner.model_fn_builder(
+        bert_config=bert_config,
+        num_labels=num_labels,
+        learning_rate=learning_rate,
+        num_train_steps=num_train_steps,
+        num_warmup_steps=num_warmup_steps,
+        use_tpu=use_tpu,
+        use_one_hot_embeddings=use_one_hot_embeddings)
 
-    optimiser = tf.keras.optimizers.Adadelta()
-
-    model.compile(loss=tf.keras.losses.categorical_crossentropy,
-        optimizer=optimiser,
-        metrics=['accuracy'])
-
-    # Convert a Keras model to tf.Estimator
-    estimator = tf.keras.estimator.model_to_estimator(keras_model=model,
-        config=config)
+    estimator = tf.contrib.tpu.TPUEstimator(
+        use_tpu=use_tpu,
+        model_fn=model_fn,
+        config=run_config,
+        train_batch_size=train_batch_size,
+        eval_batch_size=eval_batch_size,
+        predict_batch_size=predict_batch_size)
 
     return estimator
-
