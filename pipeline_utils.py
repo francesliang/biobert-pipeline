@@ -111,8 +111,7 @@ def eval_input_receiver_fn(tf_transform_output, schema):
     # The key name MUST be 'examples'.
     receiver_tensors = {'examples': serialized_tf_example}
 
-    #features.update(transformed_features)
-    features = {_INPUT_LAYER: transformed_features[_INPUT_LAYER]}
+    features.update(transformed_features)
 
     return tfma.export.EvalInputReceiver(
         features=features,
