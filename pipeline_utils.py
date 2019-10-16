@@ -1,4 +1,5 @@
 import os
+import sys
 
 import tensorflow as tf
 import tensorflow_model_analysis as tfma
@@ -8,7 +9,7 @@ from tensorflow_transform.tf_metadata import schema_utils
 THIS_PATH = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(THIS_PATH)
 
-import biobert
+from biobert import modeling
 from biobert import run_ner as bert_ner
 import pipeline_config as cfg
 
@@ -31,7 +32,7 @@ def preprocessing_fn(inputs):
     """tf.transform's callback function for preprocessing inputs."""
     outputs = {}
     for key in _FEATURE_KEYS:
-        outputs[_transform_name(key)] = inputs[key]
+        outputs[key] = inputs[key]
     return outputs
 
 
@@ -156,7 +157,7 @@ def trainer_fn(hparams, schema):
         save_checkpoints_steps=cfg.save_checkpoints_steps,
         tpu_config=tpu_config
     )
-    bert_config = biobert.modeling.BertConfig.from_json_file(cfg.bert_config_file)
+    bert_config = modeling.BertConfig.from_json_file(cfg.bert_config_file)
     num_warmup_steps = int(hparams.train_steps * cfg.warmup_proportion)
     estimator = _build_estimator(
         bert_config=bert_config,
@@ -200,6 +201,7 @@ def _build_estimator(
     model_fn = bert_ner.model_fn_builder(
         bert_config=bert_config,
         num_labels=num_labels,
+        init_checkpoint=cfg.init_checkpoint,
         learning_rate=learning_rate,
         num_train_steps=num_train_steps,
         num_warmup_steps=num_warmup_steps,
