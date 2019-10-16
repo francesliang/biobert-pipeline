@@ -75,7 +75,7 @@ def serving_receiver_fn(tf_transform_output, schema):
 
     raw_feature_spec = _get_raw_feature_spec(schema)
     print("raw_feature_spec", raw_feature_spec)
-    raw_feature_spec.pop(_LABEL_KEY)
+    #raw_feature_spec.pop(_LABEL_KEY)
 
     raw_input_fn = tf.estimator.export.build_parsing_serving_input_receiver_fn(
         raw_feature_spec, default_batch_size=None)
@@ -85,7 +85,7 @@ def serving_receiver_fn(tf_transform_output, schema):
 
     transformed_features = tf_transform_output.transform_raw_features(
         serving_input_receiver.features)
-    transformed_features.pop(_LABEL_KEY)
+    #transformed_features.pop(_LABEL_KEY)
 
     print('transformed_features in serving', transformed_features)
 
