@@ -28,3 +28,9 @@ cp airflow.cfg ~/airflow
 export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 
 
+# Refresh Airflow to pick up new config
+echo "Refresh Airflow to pick up new config"
+airflow resetdb --yes
+airflow initdb
+
+
