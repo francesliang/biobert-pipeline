@@ -5,6 +5,9 @@ import tensorflow_model_analysis as tfma
 import tensorflow_transform as tft
 from tensorflow_transform.tf_metadata import schema_utils
 
+THIS_PATH = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(THIS_PATH)
+
 import biobert
 from biobert import run_ner as bert_ner
 import pipeline_config as cfg

@@ -12,6 +12,7 @@ mkdir ~/airflow/data
 echo "Create project directories in airflow home directory"
 mkdir $AIRFLOW_DAGS_PATH
 mkdir $AIRFLOW_DATA_PATH
+mkdir $AIRFLOW_DATA_PATH/tfrecords
 mkdir $AIRFLOW_PROJ_PATH
 mkdir $AIRFLOW_PROJ_PATH/logs
 mkdir $AIRFLOW_PROJ_PATH/metadata

@@ -22,6 +22,9 @@ from tfx.orchestration.airflow.airflow_dag_runner import AirflowDagRunner
 from tfx.proto import trainer_pb2
 from tfx.proto import pusher_pb2
 
+THIS_PATH = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(THIS_PATH)
+
 from pipeline_config import *
 
 
