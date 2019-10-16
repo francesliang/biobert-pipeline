@@ -158,7 +158,7 @@ def trainer_fn(hparams, schema):
     run_config = tf.contrib.tpu.RunConfig(
         cluster=None,
         master=None,
-        model_dir=cfg.output_dir,
+        model_dir=hparams.serving_model_dir,
         save_checkpoints_steps=cfg.save_checkpoints_steps,
         tpu_config=tpu_config
     )
