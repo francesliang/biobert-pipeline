@@ -47,21 +47,27 @@ def _gzip_reader_fn(filenames):
     return tf.data.TFRecordDataset(filenames, compression_type='GZIP')
 
 
-def input_fn(filenames, tf_transform_output, batch_size=2):
-    transformed_feature_spec = (
-      tf_transform_output.transformed_feature_spec().copy())
+def input_fn_builder(filenames, tf_transform_output, batch_size):
 
-    print('transformed_feature_spec', transformed_feature_spec)
+    #def input_fn(filenames, tf_transform_output, batch_size=2):
+    def input_fn(params):
+        batch_size = params['batch_size']
+        transformed_feature_spec = (
+          tf_transform_output.transformed_feature_spec().copy())
 
-    dataset = tf.data.experimental.make_batched_features_dataset(
-      filenames, batch_size, transformed_feature_spec, reader=_gzip_reader_fn)
+        print('transformed_feature_spec', transformed_feature_spec)
 
-    transformed_features = dataset.make_one_shot_iterator().get_next()
+        dataset = tf.data.experimental.make_batched_features_dataset(
+          filenames, batch_size, transformed_feature_spec, reader=_gzip_reader_fn)
 
-    print('transformed_features', transformed_features)
-    # We pop the label because we do not want to use it as a feature while we're
-    # training.
-    return transformed_features, transformed_features.pop(_LABEL_KEY)
+        transformed_features = dataset.make_one_shot_iterator().get_next()
+
+        print('transformed_features', transformed_features)
+        # We pop the label because we do not want to use it as a feature while we're
+        # training.
+        #return transformed_features, transformed_features.pop(_LABEL_KEY)
+        return transformed_features, transformed_features[_LABEL_KEY]
+    return input_fn
 
 
 def serving_receiver_fn(tf_transform_output, schema):
@@ -120,12 +126,12 @@ def trainer_fn(hparams, schema):
     tf_transform_output = tft.TFTransformOutput(hparams.transform_output)
 
     # input_fn
-    train_input_fn = lambda: input_fn(
+    train_input_fn = input_fn_builder(
         hparams.train_files,
         tf_transform_output,
         batch_size=cfg.train_batch_size)
 
-    eval_input_fn = lambda: input_fn(
+    eval_input_fn = input_fn_builder(
         hparams.eval_files,
         tf_transform_output,
         batch_size=cfg.eval_batch_size)
@@ -170,7 +176,8 @@ def trainer_fn(hparams, schema):
         predict_batch_size=cfg.predict_batch_size,
         learning_rate=cfg.learning_rate,
         use_tpu=cfg.use_tpu,
-        use_one_hot_embeddings=cfg.use_tpu)
+        use_one_hot_embeddings=cfg.use_tpu,
+        max_seq_length=cfg.max_seq_length)
 
     receiver_fn = lambda: eval_input_receiver_fn(
         tf_transform_output, schema)
@@ -194,7 +201,8 @@ def _build_estimator(
         predict_batch_size,
         learning_rate=5e-5,
         use_tpu=False,
-        use_one_hot_embeddings=False):
+        use_one_hot_embeddings=False,
+        max_seq_length=128):
 
     num_labels = len(LABEL_KEYS) + 1
 
@@ -206,7 +214,8 @@ def _build_estimator(
         num_train_steps=num_train_steps,
         num_warmup_steps=num_warmup_steps,
         use_tpu=use_tpu,
-        use_one_hot_embeddings=use_one_hot_embeddings)
+        use_one_hot_embeddings=use_one_hot_embeddings,
+        max_seq_length=max_seq_length)
 
     estimator = tf.contrib.tpu.TPUEstimator(
         use_tpu=use_tpu,
