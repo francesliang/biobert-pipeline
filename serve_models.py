@@ -1,5 +1,8 @@
 import os, sys
 import collections
+import json
+import base64
+import requests
 
 from google.protobuf import text_format
 
@@ -20,6 +23,8 @@ from biobert import tokenization
 
 
 ner_processor = bert_ner.NerProcessor()
+
+_LOCAL_INFERENCE_TIMEOUT_SECONDS = 5.0
 
 
 def _get_raw_feature_spec(schema):
@@ -43,23 +48,6 @@ def _make_proto_coder(schema):
     raw_feature_spec = _get_raw_feature_spec(schema)
     raw_schema = dataset_schema.from_feature_spec(raw_feature_spec)
     return tft_coders.ExampleProtoCoder(raw_schema)
-
-
-def read_tfrecord(serialised_example, seq_length=128):
-    name_to_features = {
-        "input_ids": tf.FixedLenFeature([seq_length], tf.int64),
-        "input_mask": tf.FixedLenFeature([seq_length], tf.int64),
-        "segment_ids": tf.FixedLenFeature([seq_length], tf.int64),
-        "label_ids": tf.FixedLenFeature([seq_length], tf.int64),
-        # "label_ids":tf.VarLenFeature(tf.int64),
-        #"label_mask": tf.FixedLenFeature([seq_length], tf.int64),
-    }
-
-    example = tf.parse_single_example(serialised_example, name_to_features)
-    print(type(example))
-    print(example)
-
-    return example
 
 
 def construct_inputs(input_dir, vocab_file, output_dir, proto_coder):
@@ -97,19 +85,42 @@ def construct_inputs(input_dir, vocab_file, output_dir, proto_coder):
     return input_data
 
 
-def do_inference(model_dir, input_dir, schema_file, vocab_file, output_dir):
-    saved_model = tf.saved_model.load_v2(model_dir, tags=['serve'])
-    infer = saved_model.signatures['serving_default']
-    print(infer.__dict__)
+def _do_local_inference(host, port, serialized_examples, model_name="biobert"):
+    json_examples = []
+    for serialized_example in serialized_examples:
+        # The encoding follows the guidelines in:
+        # https://www.tensorflow.org/tfx/serving/api_rest
+        example_bytes = base64.b64encode(serialized_example).decode('utf-8')
+        predict_request = '{ "b64": "%s" }' % example_bytes
+        json_examples.append(predict_request)
+
+    json_request = '{ "instances": [' + ','.join(map(str, json_examples)) + ']}'
+    server_url = 'http://' + host + ':' + port + '/v1/models/{}:predict'.format(model_name)
+    response = requests.post(
+        server_url, data=json_request, timeout=_LOCAL_INFERENCE_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    prediction = response.json()
+    return prediction
+
+
+def do_inference(
+        model_dir,
+        input_dir,
+        schema_file,
+        vocab_file,
+        output_dir,
+        host="localhost",
+        port="9000"):
+    #saved_model = tf.saved_model.load_v2(model_dir, tags=['serve'])
+    #infer = saved_model.signatures['serving_default']
 
     schema = _read_schema(schema_file)
     proto_coder = _make_proto_coder(schema)
 
     input_data = construct_inputs(input_dir, vocab_file, output_dir, proto_coder)
-    #dataset = tf.data.TFRecordDataset(input_tfrecord_file)
-    #parsed_dataset = dataset.map(read_tfrecord)
 
-    prediction = infer(input_data)
+    #prediction = infer(input_data)
+    prediction = _do_local_inference(host, port, input_data)
     return prediction
 
 
@@ -122,5 +133,5 @@ if __name__ == "__main__":
     schema_file = "/Users/xinliang/airflow/biobert-pipeline/SchemaGen/output/3/schema.pbtxt"
     vocab_file = "/Users/xinliang/Projects/drug-name-recogniser/biobert-pipeline/biobert_v1.0_pubmed_pmc/vocab.txt"
     output_dir = "/Users/xinliang/Projects/drug-name-recogniser/biobert-pipeline/outputs"
-    res = do_inference(model_dir, input_dir, schema_file, vocab_file, output_dir)
-    print(res)
+    prediction = do_inference(model_dir, input_dir, schema_file, vocab_file, output_dir)
+    print(json.dumps(prediction, indent=4))
